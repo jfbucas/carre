@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 
 import os
+import sys
 import ctypes
+import timeit
 import subprocess
 
-DEBUG=1
 
 SautsCavalier = ( (1,2),(2,1),(1,-2),(2,-1),(-1,2),(-2,1),(-1,-2),(-2,-1) )
 SautsCarre    = ( (3,0),(0,3),(-3,0),(0,-3),(2,2),(-2,2),(2,-2),(-2,-2) )
@@ -134,39 +135,54 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-w=7
-h=6
-S=SautsCarre
+def CompileLib(w, h, S):
+	gen = open("libSaute.c", "w")
+	gen.write(genLibraryOptimized(w, h, S))
+	gen.close()
 
-gen = open( "libSaute.c", "w" )
-gen.write( genLibraryOptimized( w, h, S ) )
-gen.close()
+	GCC_BIN = "gcc"
+	GCC_PARAMS = "-O3 -shared -fPIC"
 
+	f = "libSaute"
+	if (not os.path.exists(f + ".so")) or (os.path.getmtime(f + ".c") > os.path.getmtime(f + ".so")):
 
-GCC_CMD="gcc "
-GCC_PARAMS="-O3 -shared -fPIC"
-
-f="libSaute"
-if (not os.path.exists( f+".so" )) or (os.path.getmtime(f+".c") > os.path.getmtime(f+".so")):
-
-	GCC_FILES = " " + f + ".c -o " +f +".so"
-
-	if DEBUG > 0:
-		print(GCC_CMD + GCC_PARAMS + GCC_FILES)
-	(val, output) = subprocess.getstatusoutput(GCC_CMD + GCC_PARAMS + GCC_FILES)
-	if val != 0:
-		print(GCC_CMD + GCC_PARAMS + GCC_FILES)
-		print(output)
-	else:
-		if DEBUG > 0:
+		GCC_FILES = f + ".c -o " + f + ".so"
+		GCC_CMD = GCC_BIN + " " + GCC_PARAMS + " " + GCC_FILES
+		print(GCC_CMD)
+		(val, output) = subprocess.getstatusoutput(GCC_CMD)
+		if val != 0:
 			print(output)
-			print()
 
 
-LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
-LibSaute.start.argtypes = [ ctypes.c_ulonglong, ]
+if __name__ == "__main__":
+	if len(sys.argv) < 2:
+		print("Vous devez donner les dimensions")
+		exit(1)
+	w = int(sys.argv[1])
+	h = int(sys.argv[2])
+	S = SautsCarre
 
-for j in range(h):
-	for i in range(w):
-		LibSaute.start( i + j*w )
-		print( ctypes.c_int.in_dll(LibSaute, "nb_solutions" ) )
+	print("Compiling")
+	sys.stdout.flush()
+	print("Time : " + str(timeit.timeit(
+		"CompileLib(w, h, S)",
+		number=1,
+		setup="from __main__ import CompileLib, w,  h, S"
+	)))
+	sys.stdout.flush()
+
+	print("Starting")
+	LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
+	LibSaute.start.argtypes = [ctypes.c_ulonglong, ]
+
+	for j in range(h):
+		for i in range(w):
+			print("Position " + str(i+1) + " x " + str(j+1))
+			sys.stdout.flush()
+			print("Time : " + str(timeit.timeit(
+				"LibSaute.start(i + j * w)",
+				number=1,
+				setup="from __main__ import LibSaute, i, j, w"
+			)))
+			print("Solutions : " + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value))
+			sys.stdout.flush()
