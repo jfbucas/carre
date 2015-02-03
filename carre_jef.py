@@ -71,7 +71,7 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 	for j in range(board_h):
 		for i in range(board_w):
 			output += "		case " + str( i + j*board_w  ) + ":\n"
-			output += "			masque ^= ( 1 << " + str( 1 << (i + j*board_w)) +"u ); // mark the initial position as being used\n"
+			output += "			masque ^= " + str( 1 << (i + j*board_w)) +"u; // mark the initial position as being used\n"
 			output += "			SauteDepuis_"+ str(i) +"_"+ str(j)+"_0 ();\n"
 			output += "			break;\n"
 	output += "	}\n"
