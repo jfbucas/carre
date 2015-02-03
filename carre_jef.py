@@ -11,11 +11,10 @@ SautsCarre    = ( (3,0),(0,3),(-3,0),(0,-3),(2,2),(-2,2),(2,-2),(-2,-2) )
 
 def genLibrary( board_w, board_h, LesSauts ):
 
-	Fin = (1<<(board_w*board_h))-1
-
-	output = "typedef unsigned long long int uint64;\n"
-	output += "uint64 nb_solutions;" + "\n"
+	defs    = "typedef unsigned long long int uint64;\n"
+	output  = "uint64 nb_solutions;" + "\n"
 	output += "uint64 masque;" + "\n"
+	defs   += "void start( uint64 position );" + "\n"
 	output += "void start( uint64 position ) {" + "\n"
 	output += "	nb_solutions = 0; " + "\n"
 	output += "	masque = 0; " + "\n"
@@ -25,43 +24,44 @@ def genLibrary( board_w, board_h, LesSauts ):
 			output += '		case ' + str(i + j*board_w  ) + ":  SauteDepuis_"+ str(i) +"_"+ str(j)+"_0 (); break;" + "\n"
 	output += "	}" + "\n"
 	output += "}" + "\n"
+	output += "\n"
 
 	for depth in range(board_w*board_h):
 		for j in range(board_h):
 			for i in range(board_w):
 
 				if depth == (board_w*board_h-1):
+					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
 					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
 					output += "	nb_solutions ++;" + "\n"
 					output += "};" + "\n"
 
 				else:
+					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
 					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
+					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + ";" + "\n"
 
 					for (sx,sy) in LesSauts:
 						i1=i+sx
 						j1=j+sy
 						if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-							output += "	// Saute Vers " + str( i1 ) + ", " + str(j1) + "\n"
-							output += "	if ((masque & " + str( 1 << (i1 + j1*board_w) ) + ") == 0 ) {" + "\n"
-							output += "		masque ^= " + str( 1 << (i1 + j1*board_w) ) + ";" + "\n"
-#							output += "		if ( masque == " + str(Fin) +" ) {" + "\n"
-#							output += "			nb_solutions ++;" + "\n"
-#							output += "		} else {" + "\n"
-							output += "		SauteDepuis_" + str(i1) + "_" + str(j1) +"_" + str(depth+1) + "();" + "\n"
-							#output += "		}" + "\n"
-							output += "		masque ^= " + str( (1 << (i1 + j1*board_w)) ) + ";" + "\n"
-							output += "	}" + "\n"
+							output += "	if ((masque & " + str( 1 << (i1 + j1*board_w) ).rjust(12," ") + ") == 0 ) SauteDepuis_" + str(i1) + "_" + str(j1) +"_" + str(depth+1) + "();" + "\n"
 
+					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + ";" + "\n"
 					output += "	return;" + "\n"
 					output += "}" + "\n"
 					output += "" + "\n"
-	
-	return output
 
+	defs += "\n"
+	
+	return defs + output
+
+w=6
+h=6
+S=SautsCarre
 
 gen = open( "libSaute.c", "w" )
-gen.write( genLibrary( 5, 5, SautsCarre ) )
+gen.write( genLibrary( w, h, S ) )
 gen.close()
 
 
@@ -88,6 +88,7 @@ if (not os.path.exists( f+".so" )) or (os.path.getmtime(f+".c") > os.path.getmti
 LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
 LibSaute.start.argtypes = [ ctypes.c_ulonglong, ]
 
-
-LibSaute.start( 0 )
-print( ctypes.c_int.in_dll(LibSaute, "nb_solutions" ) )
+for j in range(h):
+	for i in range(w):
+		LibSaute.start( i + j*w )
+		print( ctypes.c_int.in_dll(LibSaute, "nb_solutions" ) )
