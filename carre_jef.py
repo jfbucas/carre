@@ -59,7 +59,32 @@ def genLibrary( board_w, board_h, LesSauts ):
 	return defs + output
 
 # --------------------------------------------------------------------------------------------------------------------------------------
+
+SAUTS_PER_DEPTH=2
+
 def genLibraryOptimized( board_w, board_h, LesSauts ):
+
+	def genLibraryOptimized_Aux( nb_sauts, i, j, masque ):
+		output = ""
+		if (depth + nb_sauts) == (board_w*board_h-1):
+			output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
+
+		elif nb_sauts == SAUTS_PER_DEPTH:
+			output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) {\n"
+			output += "		masque ^= " + str( masque ) + "u;\n"
+			output += "		SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "();\n"
+			output += "		masque ^= " + str( masque ) + "u;\n"
+			output += "	}\n"
+
+		else:
+			for (sx,sy) in LesSauts:
+				i1=i+sx
+				j1=j+sy
+				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
+					new_masque = masque | (1 << (i1 + j1*board_w))
+					output += genLibraryOptimized_Aux( nb_sauts+1, i1, j1, new_masque )
+
+		return output
 
 	defs    = "typedef unsigned long long int uint64;\n"
 	output  = "uint64 nb_solutions;" + "\n"
@@ -78,54 +103,13 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 	output += "	}\n"
 	output += "}\n\n"
 
-	for depth in range(board_w*board_h//2):
+	for depth in range(0, board_w*board_h-1, SAUTS_PER_DEPTH):
 		for j in range(board_h):
 			for i in range(board_w):
-
-				if depth == ((board_w*board_h//2)-1):
-					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
-					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
-				
-					if (board_w*board_h % 2) == 0:
-						for (sx1,sy1) in LesSauts:
-							i1=i+sx1
-							j1=j+sy1
-							if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-									masque = (1 << (i1 + j1*board_w))
-									output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
-					else:
-						for (sx1,sy1) in LesSauts:
-							i1=i+sx1
-							j1=j+sy1
-							if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-								for (sx2,sy2) in LesSauts:
-									i2=i1+sx2
-									j2=j1+sy2
-									if (i2>=0) and (i2<board_w) and (j2>=0) and (j2<board_h):
-										masque = (1 << (i1 + j1*board_w)) | (1 << (i2 + j2*board_w))
-										output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
-					output += "};" + "\n"
-
-				else:
-					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
-					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
-
-					for (sx1,sy1) in LesSauts:
-						i1=i+sx1
-						j1=j+sy1
-						if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-							for (sx2,sy2) in LesSauts:
-								i2=i1+sx2
-								j2=j1+sy2
-								if (i2>=0) and (i2<board_w) and (j2>=0) and (j2<board_h):
-									masque = (1 << (i1 + j1*board_w)) | (1 << (i2 + j2*board_w))
-									output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) {\n"
-									output += "		masque ^= " + str( masque ) + "u;\n"
-									output += "		SauteDepuis_" + str(i2) + "_" + str(j2) +"_" + str(depth+1) + "();\n"
-									output += "		masque ^= " + str( masque ) + "u;\n"
-									output += "	}\n"
-
-					output += "}\n\n"
+				defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
+				output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
+				output += genLibraryOptimized_Aux( 0, i, j, 0 )
+				output += "}\n\n"
 
 	defs += "\n"
 	
@@ -177,12 +161,12 @@ if __name__ == "__main__":
 
 	for j in range(h):
 		for i in range(w):
-			print("Position " + str(i+1) + " x " + str(j+1))
+			print("Position " + str(i+1) + " x " + str(j+1), end=" : ")
 			sys.stdout.flush()
-			print("Time : " + str(timeit.timeit(
+			print("in " + str(timeit.timeit(
 				"LibSaute.start(i + j * w)",
 				number=1,
 				setup="from __main__ import LibSaute, i, j, w"
-			)))
-			print("Solutions : " + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value))
+			)).rjust(25, " "), end=" seconds = ")
+			print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
 			sys.stdout.flush()
