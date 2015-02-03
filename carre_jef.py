@@ -18,7 +18,7 @@ def genLibrary( board_w, board_h, LesSauts ):
 	defs   += "void start( uint64 position );" + "\n"
 	output += "void start( uint64 position ) {" + "\n"
 	output += "	nb_solutions = 0; " + "\n"
-	output += "	masque = 0; " + "\n"
+	output += "	masque = 0L; " + "\n"
 	output += "	switch (position) {" + "\n"
 	for j in range(board_h):
 		for i in range(board_w):
@@ -40,15 +40,15 @@ def genLibrary( board_w, board_h, LesSauts ):
 				else:
 					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
 					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
-					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + ";" + "\n"
+					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + "L;" + "\n"
 
 					for (sx,sy) in LesSauts:
 						i1=i+sx
 						j1=j+sy
 						if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-							output += "	if ((masque & " + str( 1 << (i1 + j1*board_w) ).rjust(12," ") + ") == 0 ) SauteDepuis_" + str(i1) + "_" + str(j1) +"_" + str(depth+1) + "();" + "\n"
+							output += "	if ((masque & " + str( 1 << (i1 + j1*board_w) ).rjust(12," ") + "L) == 0 ) SauteDepuis_" + str(i1) + "_" + str(j1) +"_" + str(depth+1) + "();" + "\n"
 
-					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + ";" + "\n"
+					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + "L;" + "\n"
 					output += "	return;" + "\n"
 					output += "}" + "\n"
 					output += "" + "\n"
@@ -66,7 +66,7 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 	defs   += "void start( uint64 position );" + "\n"
 	output += "void start( uint64 position ) {" + "\n"
 	output += "	nb_solutions = 0; " + "\n"
-	output += "	masque = 0; " + "\n"
+	output += "	masque = 0L; " + "\n"
 	output += "	switch (position) {" + "\n"
 	for j in range(board_h):
 		for i in range(board_w):
@@ -91,7 +91,7 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 							j1=j+sy1
 							if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
 									masque = (1 << (i1 + j1*board_w))
-									output += "	nb_solutions += (uint64)((masque & " + str( masque ).rjust(12," ") + ") == 0 );\n"
+									output += "	nb_solutions += (uint64)((masque & " + str( masque ).rjust(12," ") + "L ) == 0 );\n"
 					else:
 						for (sx1,sy1) in LesSauts:
 							i1=i+sx1
@@ -102,7 +102,7 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 									j2=j1+sy2
 									if (i2>=0) and (i2<board_w) and (j2>=0) and (j2<board_h):
 										masque = (1 << (i1 + j1*board_w)) | (1 << (i2 + j2*board_w))
-										output += "	nb_solutions += (uint64)((masque & " + str( masque ).rjust(12," ") + ") == 0 );\n"
+										output += "	nb_solutions += (uint64)((masque & " + str( masque ).rjust(12," ") + "L ) == 0 );\n"
 					output += "};" + "\n"
 
 				else:
@@ -118,10 +118,10 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 								j2=j1+sy2
 								if (i2>=0) and (i2<board_w) and (j2>=0) and (j2<board_h):
 									masque = (1 << (i1 + j1*board_w)) | (1 << (i2 + j2*board_w))
-									output += "	if ((masque & " + str( masque ).rjust(12," ") + ") == 0 ) {\n"
-									output += "		masque ^= " + str( masque ) + ";\n"
+									output += "	if ((masque & " + str( masque ).rjust(12," ") + "L ) == 0 ) {\n"
+									output += "		masque ^= " + str( masque ) + "L;\n"
 									output += "		SauteDepuis_" + str(i2) + "_" + str(j2) +"_" + str(depth+1) + "();\n"
-									output += "		masque ^= " + str( masque ) + ";\n"
+									output += "		masque ^= " + str( masque ) + "L;\n"
 									output += "	}\n"
 
 					output += "}\n\n"
