@@ -91,7 +91,7 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 							j1=j+sy1
 							if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
 									masque = (1 << (i1 + j1*board_w))
-									output += "	nb_solutions += (uint64)((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
+									output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
 					else:
 						for (sx1,sy1) in LesSauts:
 							i1=i+sx1
@@ -102,7 +102,7 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 									j2=j1+sy2
 									if (i2>=0) and (i2<board_w) and (j2>=0) and (j2<board_h):
 										masque = (1 << (i1 + j1*board_w)) | (1 << (i2 + j2*board_w))
-										output += "	nb_solutions += (uint64)((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
+										output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 );\n"
 					output += "};" + "\n"
 
 				else:
