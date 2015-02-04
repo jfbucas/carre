@@ -10,67 +10,19 @@ import subprocess
 SautsCavalier = ( (1,2),(2,1),(1,-2),(2,-1),(-1,2),(-2,1),(-1,-2),(-2,-1) )
 SautsCarre    = ( (3,0),(0,3),(-3,0),(0,-3),(2,2),(-2,2),(2,-2),(-2,-2) )
 
-# --------------------------------------------------------------------------------------------------------------------------------------
-def genLibrary( board_w, board_h, LesSauts ):
-
-	defs    = "typedef unsigned long long int uint64;\n"
-	output  = "uint64 nb_solutions;" + "\n"
-	output += "uint64 masque;" + "\n"
-	defs   += "void start( uint64 position );" + "\n"
-	output += "void start( uint64 position ) {" + "\n"
-	output += "	nb_solutions = 0; " + "\n"
-	output += "	masque = 0u; " + "\n"
-	output += "	switch (position) {" + "\n"
-	for j in range(board_h):
-		for i in range(board_w):
-			output += '		case ' + str(i + j*board_w  ) + ":  SauteDepuis_"+ str(i) +"_"+ str(j)+"_0 (); break;" + "\n"
-	output += "	}" + "\n"
-	output += "}" + "\n"
-	output += "\n"
-
-	for depth in range(board_w*board_h):
-		for j in range(board_h):
-			for i in range(board_w):
-
-				if depth == (board_w*board_h-1):
-					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
-					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
-					output += "	nb_solutions ++;" + "\n"
-					output += "};" + "\n"
-
-				else:
-					defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
-					output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
-					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + "u;" + "\n"
-
-					for (sx,sy) in LesSauts:
-						i1=i+sx
-						j1=j+sy
-						if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-							output += "	if ((masque & " + str( 1 << (i1 + j1*board_w) ).rjust(12," ") + "L) == 0 ) SauteDepuis_" + str(i1) + "_" + str(j1) +"_" + str(depth+1) + "();" + "\n"
-
-					output += "	masque ^= " + str( 1 << (i + j*board_w) ) + "u;" + "\n"
-					output += "	return;" + "\n"
-					output += "}" + "\n"
-					output += "" + "\n"
-
-	defs += "\n"
-	
-	return defs + output
-
-# --------------------------------------------------------------------------------------------------------------------------------------
-
 SAUTS_PER_DEPTH=1
+
+# --------------------------------------------------------------------------------------------------------------------------------------
 
 def genLibraryOptimized( board_w, board_h, LesSauts ):
 
 	def genLibraryOptimized_Aux( nb_sauts, i, j, masque ):
 		output = ""
 		if (depth + nb_sauts) == (board_w*board_h-1):
-			output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ); // "+ "{0:b}".format(masque) +" i="+str(i)+",j="+str(j)+"\n"
+			output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ); // "+ "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 
 		elif nb_sauts == SAUTS_PER_DEPTH:
-			output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) { // "+ "{0:b}".format(masque) +" i="+str(i)+",j="+str(j)+"\n"
+			output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) { // "+ "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 			output += "		masque ^= " + str( masque ) + "u;\n"
 			output += "		SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "();\n"
 			output += "		masque ^= " + str( masque ) + "u;\n"
@@ -138,6 +90,8 @@ def CompileLib(w, h, S):
 		if val != 0:
 			print(output)
 
+
+# --------------------------------------------------------------------------------------------------------------------------------------
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
