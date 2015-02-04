@@ -60,7 +60,7 @@ def genLibrary( board_w, board_h, LesSauts ):
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-SAUTS_PER_DEPTH=2
+SAUTS_PER_DEPTH=1
 
 def genLibraryOptimized( board_w, board_h, LesSauts ):
 
@@ -77,9 +77,9 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 			output += "	}\n"
 
 		else:
-			for (sx,sy) in LesSauts:
-				i1=i+sx
-				j1=j+sy
+			for ( sx, sy ) in LesSauts:
+				i1 = i + sx
+				j1 = j + sy
 				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
 					new_masque = masque | (1 << (i1 + j1*board_w))
 					output += genLibraryOptimized_Aux( nb_sauts+1, i1, j1, new_masque )
@@ -93,11 +93,11 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 	output += "void start( uint64 position ) {" + "\n"
 	output += "	nb_solutions = 0; " + "\n"
 	output += "	masque = 0u; " + "\n"
-	output += "	switch (position) {" + "\n"
+	output += "	switch ( position ) {" + "\n"
 	for j in range(board_h):
 		for i in range(board_w):
 			output += "		case " + str( i + j*board_w  ) + ":\n"
-			output += "			masque ^= " + str( 1 << (i + j*board_w)) +"u; // mark the initial position as being used\n"
+			output += "			masque ^= " + str( 1 << (i + j*board_w)) +"u;\n" # Mark initial position
 			output += "			SauteDepuis_"+ str(i) +"_"+ str(j)+"_0 ();\n"
 			output += "			break;\n"
 	output += "	}\n"
@@ -142,9 +142,12 @@ if __name__ == "__main__":
 	if len(sys.argv) < 2:
 		print("Vous devez donner les dimensions")
 		exit(1)
+
+	S = SautsCarre
 	w = int(sys.argv[1])
 	h = int(sys.argv[2])
-	S = SautsCarre
+	if len(sys.argv) > 2:
+		SAUTS_PER_DEPTH = int(sys.argv[3])
 
 	print("Compiling")
 	sys.stdout.flush()
