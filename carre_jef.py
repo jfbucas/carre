@@ -2,8 +2,8 @@
 
 import os
 import sys
+import time
 import ctypes
-import timeit
 import subprocess
 
 
@@ -209,19 +209,14 @@ def CompileLibASM(w, h, S):
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-def _template_func(setup, func):
-	"""Create a timer function. Used if the "statement" is a callable."""
-	def inner(_it, _timer, _func=func):
-		setup()
-		_t0 = _timer()
-		for _i in _it:
-			retval = _func()
-			print(retval)
-		_t1 = _timer()
-		return (_t1 - _t0, retval)
-	return inner
-
-timeit._template_func = _template_func
+# ----- Chronos
+topTime = {}
+def top( n=0 ):
+	if not n in topTime:
+		topTime[ n ] = 0
+	r = "%.2f" % (time.time() - topTime[ n ] ) + "s"
+	topTime[ n ] = time.time()
+	return r
 
 
 if __name__ == "__main__":
@@ -237,18 +232,10 @@ if __name__ == "__main__":
 
 	print("Compiling")
 	sys.stdout.flush()
-	#print("Time : " + str(timeit.timeit(
-	#	"CompileLib(w, h, S)",
-	#	number=1,
-	#	setup="from __main__ import CompileLib, w,  h, S"
-	#)))
-	t = timeit.timeit(
-		"CompileLibASM(w, h, S)",
-		number=1,
-		setup="from __main__ import CompileLibASM, w,  h, S"
-	)
-	print(t)
-	print("Time : " + str())
+	top(0)
+	#CompileLib(w, h, S)
+	CompileLibASM(w, h, S)
+	print("Time : " + top(0))
 	sys.stdout.flush()
 
 	print("Starting")
@@ -257,31 +244,19 @@ if __name__ == "__main__":
 	#for j in range(h):
 	#	for i in range(w):
 
-	LibSaute.start_0_0.restype = ctypes.c_int64
-	n = LibSaute.start_0_0()
-	print( n )
 	#if h == w:
 	#	if ((w % 2) == 0):
 
-
-
-	"""
 	for j in range(h):
 		for i in range(w):
-			print("Position " + str(i+1) + " x " + str(j+1), end=" : ")
+			print("" + str(i+1) + " x " + str(j+1), end=" : ")
 			sys.stdout.flush()
-			#print("in " + str(timeit.timeit(
-			#	"LibSaute.start(i + j * w)",
-			#	number=1,
-			#	setup="from __main__ import LibSaute, i, j, w"
-			#)).rjust(25, " "), end=" seconds = ")
-			t = timeit.timeit(
-				"LibSaute.start_"+str(i)+"_"+str(j),
-				number=1,
-				setup="from __main__ import LibSaute, i, j, w"
-			)
-			print( t )
+			top(1)
+			#LibSaute.start(i + j * w)
+			s = getattr(LibSaute, "start_"+str(i)+"_"+str(j))
+			s.restype = ctypes.c_int64
+			r = s()
+			print( r, "in", top(1) )
 			#print("in " + str().rjust(25, " "), end=" seconds = ")
 			#print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
 			sys.stdout.flush()
-	"""
