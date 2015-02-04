@@ -81,8 +81,9 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 				i1 = i + sx
 				j1 = j + sy
 				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-					new_masque = masque | (1 << (i1 + j1*board_w))
-					output += genLibraryOptimized_Aux( nb_sauts+1, i1, j1, new_masque )
+					if (masque & (1 << (i1 + j1*board_w))) == 0:
+						new_masque = masque | (1 << (i1 + j1*board_w))
+						output += genLibraryOptimized_Aux( nb_sauts+1, i1, j1, new_masque )
 
 		return output
 
