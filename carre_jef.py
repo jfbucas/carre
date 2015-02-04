@@ -67,10 +67,10 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 	def genLibraryOptimized_Aux( nb_sauts, i, j, masque ):
 		output = ""
 		if (depth + nb_sauts) == (board_w*board_h-1):
-			output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ); // i="+str(i)+",j="+str(j)+"\n"
+			output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ); // "+ "{0:b}".format(masque) +" i="+str(i)+",j="+str(j)+"\n"
 
 		elif nb_sauts == SAUTS_PER_DEPTH:
-			output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) { // i="+str(i)+",j="+str(j)+"\n"
+			output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) { // "+ "{0:b}".format(masque) +" i="+str(i)+",j="+str(j)+"\n"
 			output += "		masque ^= " + str( masque ) + "u;\n"
 			output += "		SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "();\n"
 			output += "		masque ^= " + str( masque ) + "u;\n"
