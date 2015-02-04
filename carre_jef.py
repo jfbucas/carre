@@ -78,7 +78,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 		global nb_labels
 		output = ""
 		if (depth + nb_sauts) == (board_w*board_h-1):
-			if masque > ( 1<<31 ):
+			if masque > ( 1<<30 ):
 				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	test	rcx, rbx\n"
 			else:
@@ -87,7 +87,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 			output += "	add	rdx, rax\n"
 
 		elif nb_sauts == SAUTS_PER_DEPTH:
-			if masque > ( 1<<31 ):
+			if masque > ( 1<<30 ):
 				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	test	rcx, rbx\n"
 				output += "	jne	label"+str( nb_labels )+"\n"
@@ -116,10 +116,11 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 
 		return output
 
-	symbols = "global nb_solutions\n"
-	symbols = "\n"
-	output  = "section .data\n"
-	output += "nb_solutions:	dq 2\n"
+	#symbols = "global nb_solutions\n"
+	symbols = "BITS 64\n"
+	output  = ""
+	#output += "section .data\n"
+	#output += "nb_solutions:	dq 2\n"
 	output += "section .text\n"
 	for j in range(board_h):
 		for i in range(board_w):
