@@ -78,18 +78,31 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 		global nb_labels
 		output = ""
 		if (depth + nb_sauts) == (board_w*board_h-1):
-			output += "	xor	rax, rax\n"
-			output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+			if masque > ( 1<<31 ):
+				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	test	rcx, rbx\n"
+			else:
+				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 			output += "	sete	al\n"
 			output += "	add	rdx, rax\n"
 
 		elif nb_sauts == SAUTS_PER_DEPTH:
-			output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
-			output += "	jne	label"+str( nb_labels )+"\n"
-			output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
-			output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
-			output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
-			output += "	label"+str( nb_labels )+":\n"
+			if masque > ( 1<<31 ):
+				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	test	rcx, rbx\n"
+				output += "	jne	label"+str( nb_labels )+"\n"
+				output += "		xor	rcx, rbx\n"
+				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
+				output += "		mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "		xor	rcx, rbx\n"
+				output += "	label"+str( nb_labels )+":\n"
+			else:
+				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	jne	label"+str( nb_labels )+"\n"
+				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
+				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
+				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
+				output += "	label"+str( nb_labels )+":\n"
 			nb_labels += 1
 
 		else:
@@ -110,11 +123,14 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 	output += "section .text\n"
 	for j in range(board_h):
 		for i in range(board_w):
+			masque = (1 << (i + j*board_w))
 			symbols += 'global start_' + str(i) + "_" + str(j) + "\n"
 			output += "start_" + str(i) + "_" + str(j) + ":\n"
+			output += "	xor	rax, rax\n" # for incrementing nb_solutions
+			output += "	xor	rbx, rbx\n" # for transfering imediate values bigger than (1<<31)
 			output += "	xor	rcx, rcx \n" # Mask
-			output += "	xor	rdx, rdx \n" # NB_Solutions
-			output += "	xor	rcx, "+ str( 1 << (i + j*board_w)) +"\n" # Mark initial position
+			output += "	xor	rdx, rdx \n" # nb_solutions
+			output += "	mov	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n" # Mark initial position
 			output += "	call	SauteDepuis_"+ str(i) +"_"+ str(j)+"_0\n"
 			# http://www.tortall.net/projects/yasm/manual/html/manual.html#objfmt-elf64-wrt
 			#output += "	mov	[rel nb_solutions wrt ..gotpcrel], rdx\n"
@@ -249,7 +265,7 @@ if __name__ == "__main__":
 
 
 
-
+	"""
 	for j in range(h):
 		for i in range(w):
 			print("Position " + str(i+1) + " x " + str(j+1), end=" : ")
@@ -268,3 +284,4 @@ if __name__ == "__main__":
 			#print("in " + str().rjust(25, " "), end=" seconds = ")
 			#print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
 			sys.stdout.flush()
+	"""
