@@ -91,10 +91,12 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	test	rcx, rbx\n"
 				output += "	jne	label"+str( nb_labels )+"\n"
+				output += "		push	rcx\n"
 				output += "		xor	rcx, rbx\n"
 				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
-				output += "		mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
-				output += "		xor	rcx, rbx\n"
+				output += "		pop	rcx\n"
+				#output += "		mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				#output += "		xor	rcx, rbx\n"
 				output += "	label"+str( nb_labels )+":\n"
 			else:
 				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
@@ -242,22 +244,27 @@ if __name__ == "__main__":
 	print("Starting")
 	LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
 	#LibSaute.start.argtypes = [ctypes.c_ulonglong, ]
-	#for j in range(h):
-	#	for i in range(w):
 
-	#if h == w:
-	#	if ((w % 2) == 0):
+	positions_to_check = []
+	for j in range((h+1)//2):
+		for i in range((w+1)//2):
+			if w == h:
+				if j>=i:
+					positions_to_check.append( (i, j) )
+			else:
+				positions_to_check.append( (i, j) )
 
-	for j in range(h):
-		for i in range(w):
-			print("" + str(i+1) + " x " + str(j+1), end=" : ")
-			sys.stdout.flush()
-			top(1)
-			#LibSaute.start(i + j * w)
-			s = getattr(LibSaute, "start_"+str(i)+"_"+str(j))
-			s.restype = ctypes.c_int64
-			r = s()
-			print( r, "in", top(1) )
-			#print("in " + str().rjust(25, " "), end=" seconds = ")
-			#print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
-			sys.stdout.flush()
+	#print( positions_to_check )
+			
+	for (i, j) in positions_to_check:
+		print("" + str(i+1) + " x " + str(j+1), end=" : ")
+		sys.stdout.flush()
+		top(1)
+		#LibSaute.start(i + j * w)
+		s = getattr(LibSaute, "start_"+str(i)+"_"+str(j))
+		s.restype = ctypes.c_int64
+		r = s()
+		print( r, "in", top(1) )
+		#print("in " + str().rjust(25, " "), end=" seconds = ")
+		#print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
+		sys.stdout.flush()
