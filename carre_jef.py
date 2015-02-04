@@ -68,6 +68,69 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 	
 	return defs + output
 
+# --------------------------------------------------------------------------------------------------------------------------------------
+
+def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
+	mask = rcx
+	nb_solutions = rdx
+
+	def genLibraryOptimized_Aux( nb_sauts, i, j, masque ):
+		output = ""
+		if (depth + nb_sauts) == (board_w*board_h-1):
+			#output += "	mov	rax, rcx ;"+ "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+			output += "	xor	rax, rax\n"
+			output += "	test	rcx, "+str( masque ).rjust(12," ") + ";" + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+			output += "	sete	al\n"
+			output += "	add	rdx, rax\n"
+			output += "	nb_solutions += ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ); // "+ "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+
+		elif nb_sauts == SAUTS_PER_DEPTH:
+			output += "	if ((masque & " + str( masque ).rjust(12," ") + "u ) == 0 ) { // "+ "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+			output += "		masque ^= " + str( masque ) + "u;\n"
+			output += "		SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "();\n"
+			output += "		masque ^= " + str( masque ) + "u;\n"
+			output += "	}\n"
+
+		else:
+			for ( sx, sy ) in LesSauts:
+				i1 = i + sx
+				j1 = j + sy
+				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
+					if (masque & (1 << (i1 + j1*board_w))) == 0:
+						new_masque = masque | (1 << (i1 + j1*board_w))
+						output += genLibraryOptimized_Aux( nb_sauts+1, i1, j1, new_masque )
+
+		return output
+
+	defs    = "typedef unsigned long long int uint64;\n"
+	output  = "uint64 nb_solutions;" + "\n"
+	output += "uint64 masque;" + "\n"
+	defs   += "void start( uint64 position );" + "\n"
+	output += "void start( uint64 position ) {" + "\n"
+	output += "	nb_solutions = 0; " + "\n"
+	output += "	masque = 0u; " + "\n"
+	output += "	switch ( position ) {" + "\n"
+	for j in range(board_h):
+		for i in range(board_w):
+			output += "		case " + str( i + j*board_w  ) + ":\n"
+			output += "			masque ^= " + str( 1 << (i + j*board_w)) +"u;\n" # Mark initial position
+			output += "			SauteDepuis_"+ str(i) +"_"+ str(j)+"_0 ();\n"
+			output += "			break;\n"
+	output += "	}\n"
+	output += "}\n\n"
+
+	for depth in range(0, board_w*board_h-1, SAUTS_PER_DEPTH):
+		for j in range(board_h):
+			for i in range(board_w):
+				defs   += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "();" + "\n"
+				output += 'void SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "() {" + "\n"
+				output += genLibraryOptimized_Aux( 0, i, j, 0 )
+				output += "}\n\n"
+
+	defs += "\n"
+	
+	return defs + output
+
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------
@@ -116,6 +179,9 @@ if __name__ == "__main__":
 	print("Starting")
 	LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
 	LibSaute.start.argtypes = [ctypes.c_ulonglong, ]
+
+	if h == w:
+		if ((w % 2) == 0):
 
 	for j in range(h):
 		for i in range(w):
