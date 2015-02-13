@@ -73,6 +73,18 @@ def genLibraryOptimized( board_w, board_h, LesSauts, result="nb_solutions" ):
 nb_labels = 0
 def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 
+	def genLibraryOptimizedASM_CheckIsolatedNeighbours( i, j ):
+		for ( sx, sy ) in LesSauts:
+			ineigh = i + sx
+			jneigh = j + sy
+			if (ineigh>=0) and (ineigh<board_w) and (jneigh>=0) and (jneigh<board_h):
+				neigh = (1 << (ineigh + jneigh*board_w))
+				for ( sx, sy ) in LesSauts:
+					ineigh = i + sx
+					jneigh = j + sy
+					if (ineigh>=0) and (ineigh<board_w) and (jneigh>=0) and (jneigh<board_h):
+						pass
+
 
 	def genLibraryOptimizedASM_Aux( nb_sauts, i, j, masque ):
 		global nb_labels
@@ -96,22 +108,16 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 				output += "	jne	label"+str( nb_labels )+"\n"
 				output += "		push	rcx\n"
 				output += "		xor	rcx, rbx\n"
-				if result == "nb_calls":
-					output += "		inc	rdx\n"
-				elif result == "depth"+str(depth):
+				if (result == "nb_calls") or ( result == "depth"+str(depth) ):
 					output += "		inc	rdx\n"
 				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
 				output += "		pop	rcx\n"
-				#output += "		mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
-				#output += "		xor	rcx, rbx\n"
 				output += "	label"+str( nb_labels )+":\n"
 			else:
 				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	jne	label"+str( nb_labels )+"\n"
 				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
-				if result == "nb_calls":
-					output += "		inc	rdx\n"
-				elif result == "depth"+str(depth):
+				if (result == "nb_calls") or ( result == "depth"+str(depth) ):
 					output += "		inc	rdx\n"
 				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
 				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
@@ -238,12 +244,13 @@ if __name__ == "__main__":
 		print("Vous devez donner les dimensions")
 		exit(1)
 
+	result="nb_solutions"
 	S = SautsCarre
 	w = int(sys.argv[1])
 	h = int(sys.argv[2])
 	if len(sys.argv) > 2:
 		SAUTS_PER_DEPTH = int(sys.argv[3])
-	if len(sys.argv) > 3:
+	if len(sys.argv) > 4:
 		result = sys.argv[4]
 
 	print("Compiling : ", end="")
