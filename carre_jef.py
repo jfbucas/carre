@@ -14,7 +14,7 @@ SAUTS_PER_DEPTH=1
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-def genLibraryOptimized( board_w, board_h, LesSauts ):
+def genLibraryOptimized( board_w, board_h, LesSauts, result="nb_solutions" ):
 
 	def genLibraryOptimized_Aux( nb_sauts, i, j, masque ):
 		output = ""
@@ -71,20 +71,23 @@ def genLibraryOptimized( board_w, board_h, LesSauts ):
 # --------------------------------------------------------------------------------------------------------------------------------------
 
 nb_labels = 0
-def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
+def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 
 
 	def genLibraryOptimizedASM_Aux( nb_sauts, i, j, masque ):
 		global nb_labels
 		output = ""
 		if (depth + nb_sauts) == (board_w*board_h-1):
-			if masque > ( 1<<30 ):
-				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
-				output += "	test	rcx, rbx\n"
-			else:
-				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
-			output += "	sete	al\n"
-			output += "	add	rdx, rax\n"
+			if result == "nb_solutions":
+				if masque > ( 1<<30 ):
+					output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+					output += "	test	rcx, rbx\n"
+				else:
+					output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	sete	al\n"
+				output += "	add	rdx, rax\n"
+			elif result == "nb_leaves":
+				output += "		inc	rdx\n"
 
 		elif nb_sauts == SAUTS_PER_DEPTH:
 			if masque > ( 1<<30 ):
@@ -93,6 +96,10 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 				output += "	jne	label"+str( nb_labels )+"\n"
 				output += "		push	rcx\n"
 				output += "		xor	rcx, rbx\n"
+				if result == "nb_calls":
+					output += "		inc	rdx\n"
+				elif result == "depth"+str(depth):
+					output += "		inc	rdx\n"
 				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
 				output += "		pop	rcx\n"
 				#output += "		mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
@@ -102,6 +109,10 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	jne	label"+str( nb_labels )+"\n"
 				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
+				if result == "nb_calls":
+					output += "		inc	rdx\n"
+				elif result == "depth"+str(depth):
+					output += "		inc	rdx\n"
 				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
 				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
 				output += "	label"+str( nb_labels )+":\n"
@@ -132,7 +143,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 			output += "	xor	rax, rax\n" # for incrementing nb_solutions
 			output += "	xor	rbx, rbx\n" # for transfering imediate values bigger than (1<<31)
 			output += "	xor	rcx, rcx \n" # Mask
-			output += "	xor	rdx, rdx \n" # nb_solutions
+			output += "	xor	rdx, rdx \n" # return value
 			output += "	mov	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n" # Mark initial position
 			output += "	call	SauteDepuis_"+ str(i) +"_"+ str(j)+"_0\n"
 			# http://www.tortall.net/projects/yasm/manual/html/manual.html#objfmt-elf64-wrt
@@ -157,11 +168,11 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts ):
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-def CompileLib(w, h, S):
+def CompileLib(w, h, S, result="nb_solutions"):
 	f = "libSaute"
 
 	gen = open(f+".c", "w")
-	gen.write(genLibraryOptimized(w, h, S))
+	gen.write(genLibraryOptimized(w, h, S, result))
 	gen.close()
 
 	GCC_BIN = "gcc"
@@ -176,11 +187,11 @@ def CompileLib(w, h, S):
 		if val != 0:
 			print(output)
 
-def CompileLibASM(w, h, S):
+def CompileLibASM(w, h, S, result="nb_solutions"):
 	f = "libSaute"
 
 	gen = open(f+".asm", "w")
-	gen.write(genLibraryOptimizedASM(w, h, S))
+	gen.write(genLibraryOptimizedASM(w, h, S, result))
 	gen.close()
 
 
@@ -193,7 +204,7 @@ def CompileLibASM(w, h, S):
 
 		YASM_FILES = f + ".asm -o " + f + ".o"
 		YASM_CMD = YASM_BIN + " " + YASM_PARAMS + " " + YASM_FILES
-		print(YASM_CMD)
+		#print(YASM_CMD)
 		(val, output) = subprocess.getstatusoutput(YASM_CMD)
 		if val != 0:
 			print(output)
@@ -202,7 +213,7 @@ def CompileLibASM(w, h, S):
 
 		LD_FILES = f + ".o -o " + f + ".so"
 		LD_CMD = LD_BIN + " " + LD_PARAMS + " " + LD_FILES
-		print(LD_CMD)
+		#print(LD_CMD)
 		(val, output) = subprocess.getstatusoutput(LD_CMD)
 		if val != 0:
 			print(output)
@@ -232,16 +243,18 @@ if __name__ == "__main__":
 	h = int(sys.argv[2])
 	if len(sys.argv) > 2:
 		SAUTS_PER_DEPTH = int(sys.argv[3])
+	if len(sys.argv) > 3:
+		result = sys.argv[4]
 
-	print("Compiling")
+	print("Compiling : ", end="")
 	sys.stdout.flush()
 	top(0)
-	#CompileLib(w, h, S)
-	CompileLibASM(w, h, S)
-	print("Time : " + top(0))
+	#CompileLib(w, h, S, result)
+	CompileLibASM(w, h, S, result)
+	print(top(0))
 	sys.stdout.flush()
 
-	print("Starting")
+	#print("Starting")
 	LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
 	#LibSaute.start.argtypes = [ctypes.c_ulonglong, ]
 
