@@ -73,20 +73,31 @@ def genLibraryOptimized( board_w, board_h, LesSauts, result="nb_solutions" ):
 nb_labels = 0
 def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 
-	def genLibraryOptimizedASM_CheckIsolatedNeighbours( i, j ):
-		for ( sx, sy ) in LesSauts:
-			ineigh = i + sx
-			jneigh = j + sy
-			if (ineigh>=0) and (ineigh<board_w) and (jneigh>=0) and (jneigh<board_h):
-				neigh = (1 << (ineigh + jneigh*board_w))
-				for ( sx, sy ) in LesSauts:
-					ineigh = i + sx
-					jneigh = j + sy
-					if (ineigh>=0) and (ineigh<board_w) and (jneigh>=0) and (jneigh<board_h):
-						pass
+	def CheckIsolatedNeighbours( previous_pos ):
+		output = ""
+		for (i,j) in previous_pos:
+			for ( sx, sy ) in LesSauts:
+				ineigh = i + sx
+				jneigh = j + sy
+				if (ineigh>=0) and (ineigh<board_w) and (jneigh>=0) and (jneigh<board_h):
+					neigh_mask_a = 0
+					neigh_mask_b = (1 << (ineigh + jneigh*board_w))
+					for ( sx, sy ) in LesSauts:
+						ineigh_neigh = ineigh + sx
+						jneigh_neigh = jneigh + sy
+						if (ineigh_neigh>=0) and (ineigh_neigh<board_w) and (jneigh_neigh>=0) and (jneigh_neigh<board_h):
+							neigh_mask_a = neigh_mask_a | (1 << (ineigh_neigh + jneigh_neigh*board_w))
+							neigh_mask_b = neigh_mask_b | (1 << (ineigh_neigh + jneigh_neigh*board_w))
+
+					output += "	mov	rdi, "+str( neigh_mask_b ).rjust(12," ") + " ; " + "{0:b}".format(neigh_mask_b).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+					output += "	and	rdi, rcx\n"
+					output += "	mov	rbx, "+str( neigh_mask_a ).rjust(12," ") + " ; " + "{0:b}".format(neigh_mask_b).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+					output += "	test	rdi, rbx\n"
+					output += "	je	label"+str( nb_labels )+"\n"
+		return output
 
 
-	def genLibraryOptimizedASM_Aux( nb_sauts, i, j, masque ):
+	def genLibraryOptimizedASM_Aux( nb_sauts, i, j, masque, previous_pos ):
 		global nb_labels
 		output = ""
 		if (depth + nb_sauts) == (board_w*board_h-1):
@@ -106,6 +117,8 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 				output += "	mov	rbx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	test	rcx, rbx\n"
 				output += "	jne	label"+str( nb_labels )+"\n"
+				#if depth > 25:
+				#	output += CheckIsolatedNeighbours( previous_pos )
 				output += "		push	rcx\n"
 				output += "		xor	rcx, rbx\n"
 				if (result == "nb_calls") or ( result == "depth"+str(depth) ):
@@ -116,6 +129,8 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 			else:
 				output += "	test	rcx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
 				output += "	jne	label"+str( nb_labels )+"\n"
+				#if depth > 25:
+				#	output += CheckIsolatedNeighbours( previous_pos )
 				output += "		xor	rcx, "+str( masque ).rjust(12," ") + "\n"
 				if (result == "nb_calls") or ( result == "depth"+str(depth) ):
 					output += "		inc	rdx\n"
@@ -131,7 +146,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
 					if (masque & (1 << (i1 + j1*board_w))) == 0:
 						new_masque = masque | (1 << (i1 + j1*board_w))
-						output += genLibraryOptimizedASM_Aux( nb_sauts+1, i1, j1, new_masque )
+						output += genLibraryOptimizedASM_Aux( nb_sauts+1, i1, j1, new_masque, previous_pos+[(i,j)] )
 
 		return output
 
@@ -165,7 +180,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 		for j in range(board_h):
 			for i in range(board_w):
 				output += 'SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + ":\n"
-				output += genLibraryOptimizedASM_Aux( 0, i, j, 0 )
+				output += genLibraryOptimizedASM_Aux( 0, i, j, 0, [] )
 				output += "	ret\n\n"
 
 	return symbols + output
