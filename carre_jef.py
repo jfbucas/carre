@@ -150,6 +150,53 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 
 		return output
 
+	def genLibraryOptimizedASM_Aux32( nb_sauts, i, j, masque, previous_pos ):
+		global nb_labels
+		output = ""
+		if (depth + nb_sauts) == (board_w*board_h-1):
+			if result == "nb_solutions":
+				if masque > 0xffffffff:
+					output += "	test	ebx, "+str( masque >> 32 ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				else:
+					output += "	test	ecx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	sete	al\n"
+				output += "	add	rdx, rax\n"
+			elif result == "nb_leaves":
+				output += "		inc	rdx\n"
+
+		elif nb_sauts == SAUTS_PER_DEPTH:
+			if masque > 0xffffffff:
+				output += "	test	ebx, "+str( masque >> 32 ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	jne	label"+str( nb_labels )+"\n"
+				output += "		xor	ebx, "+str( masque >> 32 ).rjust(12," ") + "\n"
+				if (result == "nb_calls") or ( result == "depth"+str(depth) ):
+					output += "		inc	rdx\n"
+				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
+				output += "		xor	ebx, "+str( masque >> 32 ).rjust(12," ") + "\n"
+				output += "	label"+str( nb_labels )+":\n"
+			else:
+				output += "	test	ecx, "+str( masque ).rjust(12," ") + " ; " + "{0:b}".format(masque).rjust(64,"0") +" i="+str(i)+",j="+str(j)+"\n"
+				output += "	jne	label"+str( nb_labels )+"\n"
+				output += "		xor	ecx, "+str( masque ).rjust(12," ") + "\n"
+				if (result == "nb_calls") or ( result == "depth"+str(depth) ):
+					output += "		inc	rdx\n"
+				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+SAUTS_PER_DEPTH) + "\n"
+				output += "		xor	ecx, "+str( masque ).rjust(12," ") + "\n"
+				output += "	label"+str( nb_labels )+":\n"
+			nb_labels += 1
+
+		else:
+			for ( sx, sy ) in LesSauts:
+				i1 = i + sx
+				j1 = j + sy
+				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
+					if (masque & (1 << (i1 + j1*board_w))) == 0:
+						new_masque = masque | (1 << (i1 + j1*board_w))
+						output += genLibraryOptimizedASM_Aux32( nb_sauts+1, i1, j1, new_masque, previous_pos+[(i,j)] )
+
+		return output
+
+
 	#symbols = "global nb_solutions\n"
 	symbols = "BITS 64\n"
 	output  = ""
@@ -180,7 +227,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 		for j in range(board_h):
 			for i in range(board_w):
 				output += 'SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + ":\n"
-				output += genLibraryOptimizedASM_Aux( 0, i, j, 0, [] )
+				output += genLibraryOptimizedASM_Aux32( 0, i, j, 0, [] )
 				output += "	ret\n\n"
 
 	return symbols + output
