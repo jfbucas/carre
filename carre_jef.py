@@ -199,6 +199,7 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, result="nb_solutions" ):
 
 	#symbols = "global nb_solutions\n"
 	symbols = "BITS 64\n"
+	#symbols += ".intel_syntax noprefix\n"
 	output  = ""
 	#output += "section .data\n"
 	#output += "nb_solutions:	dq 2\n"
