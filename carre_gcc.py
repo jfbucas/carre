@@ -11,88 +11,98 @@ SautsCavalier = ( (1,2),(2,1),(1,-2),(2,-1),(-1,2),(-2,1),(-1,-2),(-2,-1) )
 SautsCarre    = ( (3,0),(0,3),(-3,0),(0,-3),(2,2),(-2,2),(2,-2),(-2,-2) )
 
 NB_CORES=5
-MIN_JOBS_NUMBER = 100 # To get a finer granularity spreading the jobs amongst the cores
+MIN_JOBS_PER_POSITION = 100 # To get a finer granularity spreading the jobs amongst the cores
 COMMENT_MARKER=" # "
 M0 = 0xffffffff
 M1 = 0xffffffff00000000
 
-GCC_CMD="/usr/linux-k1om-4.7/bin/x86_64-k1om-linux-gcc"
+nb_labels = 0
+w = 0
+h = 0
+LesSauts = SautsCarre
+
+GCC_BIN="gcc"
+#GCC_BIN="/usr/linux-k1om-4.7/bin/x86_64-k1om-linux-gcc"
+if os.environ.get('GCC') != None:
+	GCC_BIN = os.environ.get('GCC')
+	print('[ Env GCC found :', GCC_BIN, ' ]')
+
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-nb_labels = 0
-def genLibraryOptimizedASM( board_w, board_h, LesSauts, start_positions ):
+def genLibraryOptimizedASM_AuxCountDepth( nb_sauts, i, j, masque, depth_limit ):
+	count = 0
+	
+	new_masque = masque | (1 << (i + j*w))
 
-	def genLibraryOptimizedASM_AuxCountDepth( nb_sauts, i, j, masque, depth_limit ):
-		count = 0
-		
-		new_masque = masque | (1 << (i + j*board_w))
+	if (nb_sauts+1 >= depth_limit):
+		count = 1
+	else:
+		for ( sx, sy ) in LesSauts:
+			i1 = i + sx
+			j1 = j + sy
+			if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
+				if (masque & (1 << (i1 + j1*w))) == 0:
+					count += genLibraryOptimizedASM_AuxCountDepth( nb_sauts+1, i1, j1, new_masque, depth_limit )
+	return count
 
-		if (nb_sauts+1 >= depth_limit):
-			count = 1
+def genLibraryOptimizedASM_AuxListMasques( nb_sauts, i, j, masque, depth_limit ):
+	list_masques = []
+
+	new_masque = masque | (1 << (i + j*w))
+
+	if (nb_sauts+1 == depth_limit):
+		list_masques.append( (new_masque, i, j) )
+	else:
+		for ( sx, sy ) in LesSauts:
+			i1 = i + sx
+			j1 = j + sy
+			if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
+				if (masque & (1 << (i1 + j1*w))) == 0:
+					list_masques.extend( genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, depth_limit ) )
+	return list_masques
+
+def genLibraryOptimizedASM_Aux( depth, nb_sauts, i, j, masque ):
+	global nb_labels
+	output = ""
+	if (depth + nb_sauts) == (w*h-1):
+		if (masque & M1) != 0:
+			output += "	test	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
 		else:
-			for ( sx, sy ) in LesSauts:
-				i1 = i + sx
-				j1 = j + sy
-				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-					if (masque & (1 << (i1 + j1*board_w))) == 0:
-						count += genLibraryOptimizedASM_AuxCountDepth( nb_sauts+1, i1, j1, new_masque, depth_limit )
-		return count
+			output += "	test	ecx, "+str( masque & M0 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
+		output += "	sete	al\n"
+		output += "	add	rdx, rax\n"
 
-	def genLibraryOptimizedASM_AuxListMasques( nb_sauts, i, j, masque, depth_limit ):
-		list_masques = []
-
-		new_masque = masque | (1 << (i + j*board_w))
-
-		if (nb_sauts+1 == depth_limit):
-			list_masques.append( (new_masque, i, j) )
+	elif nb_sauts == 1:
+		if (masque & M1) != 0:
+			output += "	test	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
+			output += "	jne	label"+str( nb_labels )+"\n"
+			output += "		xor	ebx, "+str( masque >> 32 ).rjust(12," ") + "\n"
+			output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+1) + "\n"
+			output += "		xor	ebx, "+str( masque >> 32 ).rjust(12," ") + "\n"
+			output += "	label"+str( nb_labels )+":\n"
 		else:
-			for ( sx, sy ) in LesSauts:
-				i1 = i + sx
-				j1 = j + sy
-				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-					if (masque & (1 << (i1 + j1*board_w))) == 0:
-						list_masques.extend( genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, depth_limit ) )
-		return list_masques
+			output += "	test	ecx, "+str( masque & M0 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
+			output += "	jne	label"+str( nb_labels )+"\n"
+			output += "		xor	ecx, "+str( masque & M0 ).rjust(12," ") + "\n"
+			output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+1) + "\n"
+			output += "		xor	ecx, "+str( masque & M0 ).rjust(12," ") + "\n"
+			output += "	label"+str( nb_labels )+":\n"
+		nb_labels += 1
 
-	def genLibraryOptimizedASM_Aux( nb_sauts, i, j, masque ):
-		global nb_labels
-		output = ""
-		if (depth + nb_sauts) == (board_w*board_h-1):
-			if (masque & M1) != 0:
-				output += "	test	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
-			else:
-				output += "	test	ecx, "+str( masque & M0 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
-			output += "	sete	al\n"
-			output += "	add	rdx, rax\n"
+	else:
+		for ( sx, sy ) in LesSauts:
+			i1 = i + sx
+			j1 = j + sy
+			if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
+				if (masque & (1 << (i1 + j1*w))) == 0:
+					new_masque = masque | (1 << (i1 + j1*w))
+					output += genLibraryOptimizedASM_Aux( depth, nb_sauts+1, i1, j1, new_masque )
 
-		elif nb_sauts == 1:
-			if (masque & M1) != 0:
-				output += "	test	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
-				output += "	jne	label"+str( nb_labels )+"\n"
-				output += "		xor	ebx, "+str( masque >> 32 ).rjust(12," ") + "\n"
-				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+1) + "\n"
-				output += "		xor	ebx, "+str( masque >> 32 ).rjust(12," ") + "\n"
-				output += "	label"+str( nb_labels )+":\n"
-			else:
-				output += "	test	ecx, "+str( masque & M0 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0).rjust(32,"0") +" i="+str(i)+",j="+str(j)+"\n"
-				output += "	jne	label"+str( nb_labels )+"\n"
-				output += "		xor	ecx, "+str( masque & M0 ).rjust(12," ") + "\n"
-				output += "		call	SauteDepuis_" + str(i) + "_" + str(j) +"_" + str(depth+1) + "\n"
-				output += "		xor	ecx, "+str( masque & M0 ).rjust(12," ") + "\n"
-				output += "	label"+str( nb_labels )+":\n"
-			nb_labels += 1
+	return output
 
-		else:
-			for ( sx, sy ) in LesSauts:
-				i1 = i + sx
-				j1 = j + sy
-				if (i1>=0) and (i1<board_w) and (j1>=0) and (j1<board_h):
-					if (masque & (1 << (i1 + j1*board_w))) == 0:
-						new_masque = masque | (1 << (i1 + j1*board_w))
-						output += genLibraryOptimizedASM_Aux( nb_sauts+1, i1, j1, new_masque )
+def genLibraryOptimizedASM( start_positions ):
 
-		return output
 
 	symbols = ".intel_syntax noprefix\n"
 	symbols += ".text\n"
@@ -101,39 +111,36 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, start_positions ):
 	for (i, j) in start_positions:
 		# Get the depth at which we can split the search tree in a reasonable number of blocks
 		depth_limit = 0
-		while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_NUMBER ):
+		while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_PER_POSITION ):
 			depth_limit += 1
 
 		# Get the list of all the masques for that depth and where to start
 		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, depth_limit)
 		output += "# Depth_Jobs=" +str(depth_limit) + " => " + str(len(list_masques))+" Jobs\n"
-		if NB_CORES > 1:
-			nb_jobs_per_core = (len(list_masques) // (NB_CORES-1)) 
-		else:
-			nb_jobs_per_core = len(list_masques)
 
-
-		for c in range(0, NB_CORES):
-			output += ".globl start_" + str(i) + "_" + str(j) + "_" + str(c) + "\n"
-			output += ".type start_" + str(i) + "_" + str(j) + "_" + str(c) + ", @function\n"
-			output += "start_" + str(i) + "_" + str(j) + "_" + str(c) + ":\n"
+		for n in range(0, len(list_masques)):
+			output += ".globl start_" + str(i) + "_" + str(j) + "_" + str(n) + "\n"
+			output += ".type start_" + str(i) + "_" + str(j) + "_" + str(n) + ", @function\n"
+			output += "start_" + str(i) + "_" + str(j) + "_" + str(n) + ":\n"
 			output += "	xor	rax, rax\n" # sete al for incrementing rdx
 			output += "	xor	rbx, rbx\n" # Mask bits 32-63
 			output += "	xor	rcx, rcx\n" # Mask bits 0-31
 			output += "	xor	rdx, rdx\n" # return value
-			for (masque, si, sj) in list_masques[c*nb_jobs_per_core:(c+1)*nb_jobs_per_core]:
-				output += "	mov	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque >> 32).rjust(32,"0") +" \n"
-				output += "	mov	ecx, "+str( masque & M0  ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0 ).rjust(32,"0") +" \n" # Mark initial position
-				output += "	call	SauteDepuis_"+ str(si) +"_"+ str(sj)+"_" + str(depth_limit-1) +"\n"
+			(masque, si, sj) = list_masques[n]
+			output += "	mov	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque >> 32).rjust(32,"0") +" \n"
+			output += "	mov	ecx, "+str( masque & M0  ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0 ).rjust(32,"0") +" \n" # Mark initial position
+			output += "	call	SauteDepuis_"+ str(si) +"_"+ str(sj)+"_" + str(depth_limit-1) +"\n"
 			output += "	mov	rax, rdx\n"
 			output += "	ret\n"
 	output += "\n"
+	
+	output += COMMENT_MARKER + "=======================================================================================\n"
 
-	for depth in range(0, board_w*board_h-1):
-		for j in range(board_h):
-			for i in range(board_w):
+	for depth in range(0, w*h-1):
+		for j in range(h):
+			for i in range(w):
 				output += 'SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + ":\n"
-				output += genLibraryOptimizedASM_Aux( 0, i, j, 0 )
+				output += genLibraryOptimizedASM_Aux( depth, 0, i, j, 0 )
 				output += "	ret\n\n"
 
 	return symbols + output
@@ -141,39 +148,98 @@ def genLibraryOptimizedASM( board_w, board_h, LesSauts, start_positions ):
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
+def CompileJob(f):
+
+	GCC_PARAMS = "-L. -L.. -L../.. -lSaute"
+
+	GCC_FILES = "cores/"+f + ".c -o cores/" + f + ""
+	GCC_CMD = GCC_BIN + " " + GCC_FILES + " " + GCC_PARAMS 
+	print(GCC_CMD)
+	(val, output) = subprocess.getstatusoutput(GCC_CMD)
+	if val != 0:
+		print(output)
+
+	return "Ok"
+
+
 def genCore( start_positions ):
-	bash_compile = open("cores/compile", "w")
-	bash_compile.write("#!/bin/bash\n")
-	bash_run = open("cores/run", "w")
+	try:
+		os.makedirs('cores/out'+str(w)+"x"+str(h))
+	except OSError:
+		pass
+	
+	base="carre_"+str(w)+"x"+str(h)
+
+	gen = open("cores/" +base+".c", "w")
+	gen.write("#include <stdio.h>\n")
+	nb_jobs=0
+	main_func = "int main (int argc, char *argv[]) {\n	int i;\n"
+	main_func += "	if (argc > 1) {\n		i = atoi(argv[1]);\n"
+
+	for (i, j) in start_positions:
+		# Get the depth at which we can split the search tree in a reasonable number of blocks
+		depth_limit = 0
+		while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_PER_POSITION ):
+			depth_limit += 1
+
+		# Get the list of all the masques for that depth and where to start
+		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, depth_limit)
+
+		for n in range(0, len(list_masques)):
+			gen.write("extern int start_"+str(i)+"_"+str(j)+"_"+str(n)+"();int main"+str(nb_jobs).rjust(6,"0")+"() { printf(\""+str(i)+"_"+str(j)+"_"+str(n)+"\\n%i\\n\", start_"+str(i)+"_"+str(j)+"_"+str(n)+"()); }\n" )
+			main_func += "		if (i == "+str(nb_jobs)+") main"+str(nb_jobs).rjust(6,"0")+"();\n"
+			nb_jobs += 1
+	
+	main_func += "	} else {\n		printf(\"%i\\n\", "+str(nb_jobs)+");\n	}\n"
+	main_func += "	return 0;\n}\n\n"
+	gen.write(main_func)
+
+	gen.close()
+	CompileJob( base )
+
+	bash_run = open("cores/run_"+base, "w")
 	bash_run.write("#!/bin/bash\n")
 	bash_run.write("export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:.:..\n")
+	bash_run.write("NB_CORES=\"$(grep processor /proc/cpuinfo | wc -l)\"\n")
+	bash_run.write("nb_jobs=$(./cores/"+base+")\n")
+	bash_run.write("current_job=0\n")
+	bash_run.write("nb_running=0\n")
+	bash_run.write("while [ $current_job -lt $nb_jobs ]; do\n")
+	bash_run.write("	if [ $nb_running -lt $NB_CORES ]; then\n")
+	bash_run.write("		nb_start=$(( $NB_CORES - $nb_running ))\n")
+	bash_run.write("		for ((n = 0; n < $nb_start; n++)); do\n")
+	bash_run.write("			if [ $current_job -lt $nb_jobs ]; then\n")
+	bash_run.write("				echo \"Start job $current_job\"\n")
+	bash_run.write("				./cores/"+base+" $current_job > ./cores/out"+str(w)+"x"+str(h)+"/$current_job &\n")
+	bash_run.write("				(( current_job ++ ))\n")
+	bash_run.write("			fi\n")
+	bash_run.write("		done\n")
+	bash_run.write("	fi\n")
+	#bash_run.write("	sleep 2\n")
+	bash_run.write("	nb_running=$(pgrep "+base+" | wc -l)\n")
+	bash_run.write("done\n")
+	bash_run.write("wait\n")
 	for (i, j) in start_positions:
-		for c in range(NB_CORES):
-			f = "cores/"+str(i)+"_"+str(j)+"_"+str(c)
-			gen = open(f+".c", "w")
-			gen.write("#include <stdio.h>\n")
-			gen.write("extern int start_"+str(i)+"_"+str(j)+"_"+str(c)+"();int main() { printf(\"%i\\n\", start_"+str(i)+"_"+str(j)+"_"+str(c)+"()); }\n" )
-			gen.close()
-			bash_compile.write("gcc "+f+".c -L. -L.. -o "+f+" -lSaute\n")
-			bash_run.write("./"+f+" > "+f+".output &\n")
-		bash_run.write("wait\n")
+		bash_run.write("total=0\n")
+		bash_run.write("for o in $(grep -l ^"+str(i)+"_"+str(j)+" cores/out"+str(w)+"x"+str(h)+"/*); do\n")
+		bash_run.write("	total=$(( $total + $(tail -1 $o) ))\n")
+		bash_run.write("done\n")
+		bash_run.write("echo \""+str(i)+"x"+str(j)+" : $total\"\n")
 
-	bash_compile.close()
 	bash_run.close()
 
 
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-def CompileLibASM(w, h, S, start_positions):
+def CompileLibASM(start_positions):
 	f = "libSaute"
 
 	gen = open(f+".s", "w")
-	gen.write(genLibraryOptimizedASM(w, h, S, start_positions))
+	gen.write(genLibraryOptimizedASM(start_positions))
 	gen.close()
 
 
-	GCC_BIN = "gcc "
 	GCC_PARAMS = "-s -shared -fPIC -O3"
 
 	if (not os.path.exists(f + ".so")) or (os.path.getmtime(f + ".s") > os.path.getmtime(f + ".so")):
@@ -208,7 +274,6 @@ if __name__ == "__main__":
 		exit(1)
 
 	#result="nb_solutions"
-	S = SautsCarre
 	w = int(sys.argv[1])
 	h = int(sys.argv[2])
 	if len(sys.argv) > 3:
@@ -229,30 +294,39 @@ if __name__ == "__main__":
 	print("Compiling : ", end="")
 	sys.stdout.flush()
 	top(0)
-	CompileLibASM(w, h, S, positions_to_check)
-	genCore(positions_to_check)
+	CompileLibASM(positions_to_check)
+	genCore( positions_to_check)
 	print(top(0))
 	sys.stdout.flush()
 
-	#print("Starting")
-	LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
-	#LibSaute.start.argtypes = [ctypes.c_ulonglong, ]
+	# If we are not cross compiling
+	if os.environ.get('GCC') == None:
+		#print("Starting")
+		LibSaute = ctypes.cdll.LoadLibrary("./libSaute.so")
+		#LibSaute.start.argtypes = [ctypes.c_ulonglong, ]
 
 
-	#print( positions_to_check )
-			
-	for (i, j) in positions_to_check:
-		print("" + str(i+1) + " x " + str(j+1), end=" : ")
-		sys.stdout.flush()
-		top(1)
-		#LibSaute.start(i + j * w)
+		#print( positions_to_check )
+				
+		for (i, j) in positions_to_check:
+			print("" + str(i+1) + " x " + str(j+1), end=" : ")
+			sys.stdout.flush()
+			top(1)
+			#LibSaute.start(i + j * w)
 
-		r = 0
-		for c in range(NB_CORES):
-			s = getattr(LibSaute, "start_"+str(i)+"_"+str(j)+"_"+str(c))
-			s.restype = ctypes.c_int64
-			r += s()
-		print( r, "in", top(1) )
-		#print("in " + str().rjust(25, " "), end=" seconds = ")
-		#print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
-		sys.stdout.flush()
+			r = 0
+			# Get the depth at which we can split the search tree in a reasonable number of blocks
+			depth_limit = 0
+			while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_PER_POSITION ):
+				depth_limit += 1
+
+			# Get the list of all the masques for that depth and where to start
+			list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, depth_limit)
+			for n in range(0, len(list_masques)):
+				s = getattr(LibSaute, "start_"+str(i)+"_"+str(j)+"_"+str(n))
+				s.restype = ctypes.c_int64
+				r += s()
+			print( r, "in", top(1) )
+			#print("in " + str().rjust(25, " "), end=" seconds = ")
+			#print("" + str(ctypes.c_int.in_dll( LibSaute, "nb_solutions" ).value), " solutions")
+			sys.stdout.flush()
