@@ -15,6 +15,8 @@ MIN_JOBS_PER_POSITION = 100 # To get a finer granularity spreading the jobs amon
 COMMENT_MARKER=" # "
 M0 = 0xffffffff
 M1 = 0xffffffff00000000
+MAX_W = 10
+MAX_H = 10
 
 nb_labels = 0
 w = 0
@@ -30,37 +32,136 @@ if os.environ.get('GCC') != None:
 
 # --------------------------------------------------------------------------------------------------------------------------------------
 
-def genLibraryOptimizedASM_AuxCountDepth( nb_sauts, i, j, masque, depth_limit ):
-	count = 0
+def printMask(masque_a, masque_b=None):
+	w2=w
+	if masque_b:
+		w2=w*2
 	
+	o = "/" + "--" * w2 + "-\\\n"
+	for j in range(h):
+		o+="|"
+		for i in range(w):
+			if masque_a & (1 << (i + j*w)):
+				o += "<>"
+			else:
+				o += "  "
+		if masque_b:
+			o+="|"
+			for i in range(w):
+				if masque_b & (1 << (i + j*w)):
+					o += "<>"
+				else:
+					o += "  "
+		o+="|\n"
+	o += "\\" + "--" * w2 + "-/\n"
+	print(o)
+	
+# --------------------------------------------------------------------------------------------------------------------------------------
+
+def symetricHMask(masque):
+	new_masque = 0
+	for j in range(h):
+		for i in range(w):
+			if masque & (1 << (i + j*w)):
+				new_masque |= (1 << ((w-1-i) + j*w))
+	return new_masque
+
+def symetricVMask(masque):
+	new_masque = 0
+	for j in range(h):
+		for i in range(w):
+			if masque & (1 << (i + j*w)):
+				new_masque |= (1 << (i + (h-1-j)*w))
+	return new_masque
+
+def symetricD1Mask(masque):
+	new_masque = 0
+	for j in range(h):
+		for i in range(w):
+			if masque & (1 << (i + j*w)):
+				new_masque |= (1 << (j + i*w))
+	return new_masque
+	
+def symetricD2Mask(masque):
+	return symetricD1Mask(symetricHMask(symetricVMask(masque)))
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------
+
+
+def genLibraryOptimizedASM_AuxListMasques( nb_sauts, i, j, masque, coef, depth_limit, what="count" ):
+	list_masques = None
+	count = 0
+	if what == "list":
+		list_masques = []
+
 	new_masque = masque | (1 << (i + j*w))
 
 	if (nb_sauts+1 >= depth_limit):
 		count = 1
+		if what == "list":
+			list_masques.append( (new_masque, i, j, coef) )
+
 	else:
-		for ( sx, sy ) in LesSauts:
-			i1 = i + sx
-			j1 = j + sy
-			if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
-				if (masque & (1 << (i1 + j1*w))) == 0:
-					count += genLibraryOptimizedASM_AuxCountDepth( nb_sauts+1, i1, j1, new_masque, depth_limit )
+		if nb_sauts == 0:
+			# Try to detect symetrical situations
+			LesSautsMasques = []
+			for ( sx, sy ) in LesSauts:
+				i1 = i + sx
+				j1 = j + sy
+				if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
+					if (new_masque & (1 << (i1 + j1*w))) == 0:
+						#LesSautsMasques.append( (i1, j1, new_masque | (1 << (i1 + j1*w)) ) )
+						LesSautsMasques.append( new_masque | (1 << (i1 + j1*w)) )
+
+			c = [ 1 ] * len( LesSautsMasques )
+			for lsa in range(0, len(LesSautsMasques)):
+				m = LesSautsMasques[ lsa ]
+				if c[ lsa ] == 1:
+					for lsb in range(0, len(LesSautsMasques)):
+						n = LesSautsMasques[ lsb ]
+						if ((m == symetricHMask( n )) or
+							(m == symetricVMask( n )) or
+							(m == symetricD1Mask( n )) or
+							(m == symetricD2Mask( n ))):
+								c[ lsa ] += 1
+								c[ lsb ] -= 1
+
+			#print( i, j, depth_limit )
+			#print( c )
+			#for lsa in range(0, len(LesSautsMasques)):
+			#	m = LesSautsMasques[ lsa ]
+			#	printMask( m )
+
+			for ( sx, sy ) in LesSauts:
+				i1 = i + sx
+				j1 = j + sy
+				if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
+					if (new_masque & (1 << (i1 + j1*w))) == 0:
+						m = (new_masque | (1 << (i1 + j1*w)))
+						for lsa in range(0, len(LesSautsMasques)):
+							n = LesSautsMasques[ lsa ]
+							if (m == n) and (c[ lsa ] > 0):
+								if what == "list":
+									list_masques.extend( genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, c[ lsa ], depth_limit, what ) )
+								else:
+									count += genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, c[ lsa ], depth_limit, what )
+									
+						
+		else:
+			for ( sx, sy ) in LesSauts:
+				i1 = i + sx
+				j1 = j + sy
+				if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
+					if (new_masque & (1 << (i1 + j1*w))) == 0:
+						if what == "list":
+							list_masques.extend( genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, coef, depth_limit, what ) )
+						else:
+							count += genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, coef, depth_limit, what )
+
+	if what == "list":
+		return list_masques
 	return count
-
-def genLibraryOptimizedASM_AuxListMasques( nb_sauts, i, j, masque, depth_limit ):
-	list_masques = []
-
-	new_masque = masque | (1 << (i + j*w))
-
-	if (nb_sauts+1 == depth_limit):
-		list_masques.append( (new_masque, i, j) )
-	else:
-		for ( sx, sy ) in LesSauts:
-			i1 = i + sx
-			j1 = j + sy
-			if (i1>=0) and (i1<w) and (j1>=0) and (j1<h):
-				if (masque & (1 << (i1 + j1*w))) == 0:
-					list_masques.extend( genLibraryOptimizedASM_AuxListMasques( nb_sauts+1, i1, j1, new_masque, depth_limit ) )
-	return list_masques
 
 def genLibraryOptimizedASM_Aux( depth, nb_sauts, i, j, masque ):
 	global nb_labels
@@ -111,14 +212,40 @@ def genLibraryOptimizedASM( start_positions ):
 	for (i, j) in start_positions:
 		# Get the depth at which we can split the search tree in a reasonable number of blocks
 		depth_limit = 0
-		while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_PER_POSITION ):
+		while ( genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit) <= MIN_JOBS_PER_POSITION ):
 			depth_limit += 1
 
 		# Get the list of all the masques for that depth and where to start
-		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, depth_limit)
+		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit, "list")
 		output += "# Depth_Jobs=" +str(depth_limit) + " => " + str(len(list_masques))+" Jobs\n"
 
+		"""
+		for na in range(0, 10):
+			print(i, j, '-------------------------')
+			(masque_a, si_a, sj_a, coef_a) = list_masques[ na ]
+			masque_b = symetricHMask(masque_a)
+			printMask(masque_a, masque_b)
+			masque_b = symetricVMask(masque_a)
+			printMask(masque_a, masque_b)
+			masque_b = symetricD1Mask(masque_a)
+			printMask(masque_a, masque_b)
+			masque_b = symetricD2Mask(masque_a)
+			printMask(masque_a, masque_b)
+		
+		a = 0
+		for na in range(0, len(list_masques)):
+			for nb in range(0, len(list_masques)):
+				if na != nb:
+					(masque_a, si_a, sj_a, coef_a) = list_masques[ na ]
+					(masque_b, si_b, sj_b, coef_b) = list_masques[ nb ]
+					if (si_a == si_b) and ( sj_a == sj_b ) and (masque_a == masque_b):
+						printMask(masque_a, masque_b)
+						a += 1
+		print( a )
+		"""
+
 		for n in range(0, len(list_masques)):
+			(masque, si, sj, coef) = list_masques[n]
 			output += ".globl start_" + str(i) + "_" + str(j) + "_" + str(n) + "\n"
 			output += ".type start_" + str(i) + "_" + str(j) + "_" + str(n) + ", @function\n"
 			output += "start_" + str(i) + "_" + str(j) + "_" + str(n) + ":\n"
@@ -126,11 +253,12 @@ def genLibraryOptimizedASM( start_positions ):
 			output += "	xor	rbx, rbx\n" # Mask bits 32-63
 			output += "	xor	rcx, rcx\n" # Mask bits 0-31
 			output += "	xor	rdx, rdx\n" # return value
-			(masque, si, sj) = list_masques[n]
 			output += "	mov	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque >> 32).rjust(32,"0") +" \n"
 			output += "	mov	ecx, "+str( masque & M0  ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0 ).rjust(32,"0") +" \n" # Mark initial position
 			output += "	call	SauteDepuis_"+ str(si) +"_"+ str(sj)+"_" + str(depth_limit-1) +"\n"
 			output += "	mov	rax, rdx\n"
+			for n in range(1,coef):
+				output += "	add	rax, rdx\n"
 			output += "	ret\n"
 	output += "\n"
 	
@@ -179,11 +307,11 @@ def genCore( start_positions ):
 	for (i, j) in start_positions:
 		# Get the depth at which we can split the search tree in a reasonable number of blocks
 		depth_limit = 0
-		while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_PER_POSITION ):
+		while ( genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit) <= MIN_JOBS_PER_POSITION ):
 			depth_limit += 1
 
 		# Get the list of all the masques for that depth and where to start
-		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, depth_limit)
+		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit, "list")
 
 		for n in range(0, len(list_masques)):
 			gen.write("extern int start_"+str(i)+"_"+str(j)+"_"+str(n)+"();int main"+str(nb_jobs).rjust(6,"0")+"() { printf(\""+str(i)+"_"+str(j)+"_"+str(n)+"\\n%i\\n\", start_"+str(i)+"_"+str(j)+"_"+str(n)+"()); }\n" )
@@ -317,11 +445,11 @@ if __name__ == "__main__":
 			r = 0
 			# Get the depth at which we can split the search tree in a reasonable number of blocks
 			depth_limit = 0
-			while ( genLibraryOptimizedASM_AuxCountDepth( 0, i, j, 0, depth_limit) <= MIN_JOBS_PER_POSITION ):
+			while ( genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit) <= MIN_JOBS_PER_POSITION ):
 				depth_limit += 1
 
 			# Get the list of all the masques for that depth and where to start
-			list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, depth_limit)
+			list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit, "list")
 			for n in range(0, len(list_masques)):
 				s = getattr(LibSaute, "start_"+str(i)+"_"+str(j)+"_"+str(n))
 				s.restype = ctypes.c_int64
