@@ -103,8 +103,8 @@ def genLibraryOptimizedASM_AuxListMasques( nb_sauts, i, j, masque, coef, depth_l
 			list_masques.append( (new_masque, i, j, coef) )
 
 	else:
-		if nb_sauts == 0:
-			# Try to detect symetrical situations
+		if nb_sauts <= 4:
+			# Try to detect symetrical situations for up to 3 levels of deepness
 			LesSautsMasques = []
 			for ( sx, sy ) in LesSauts:
 				i1 = i + sx
@@ -114,7 +114,7 @@ def genLibraryOptimizedASM_AuxListMasques( nb_sauts, i, j, masque, coef, depth_l
 						#LesSautsMasques.append( (i1, j1, new_masque | (1 << (i1 + j1*w)) ) )
 						LesSautsMasques.append( new_masque | (1 << (i1 + j1*w)) )
 
-			c = [ 1 ] * len( LesSautsMasques )
+			c = [ coef ] * len( LesSautsMasques )
 			for lsa in range(0, len(LesSautsMasques)):
 				m = LesSautsMasques[ lsa ]
 				if c[ lsa ] == 1:
