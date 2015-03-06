@@ -11,7 +11,7 @@ SautsCavalier = ( (1,2),(2,1),(1,-2),(2,-1),(-1,2),(-2,1),(-1,-2),(-2,-1) )
 SautsCarre    = ( (3,0),(0,3),(-3,0),(0,-3),(2,2),(-2,2),(2,-2),(-2,-2) )
 
 NB_CORES=5
-MIN_JOBS_PER_POSITION = 100 # To get a finer granularity spreading the jobs amongst the cores
+MIN_JOBS_PER_POSITION = 1000 # To get a finer granularity spreading the jobs amongst the cores
 COMMENT_MARKER=" # "
 M0 = 0xffffffff
 M1 = 0xffffffff00000000
