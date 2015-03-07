@@ -218,7 +218,7 @@ def genLibraryOptimizedASM( start_positions ):
 		# Get the list of all the masques for that depth and where to start
 		list_masques = genLibraryOptimizedASM_AuxListMasques( 0, i, j, 0, 1, depth_limit, "list")
 		output += COMMENT_MARKER + "=[ start_position "+ str(i)+","+str(j)+"]=======================================================================================\n"
-		output += COMMENT_MARKER + "Depth_Jobs=" +str(depth_limit) + " => " + str(len(list_masques))+" Jobs\n"
+		output += COMMENT_MARKER + "Depth limit " +str(depth_limit) + " => " + str(len(list_masques))+" Jobs\n"
 
 		"""
 		for na in range(0, 10):
@@ -256,22 +256,23 @@ def genLibraryOptimizedASM( start_positions ):
 			output += "	xor	rdx, rdx\n" # return value
 			output += "	mov	ebx, "+str( masque >> 32 ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque >> 32).rjust(32,"0") +" \n"
 			output += "	mov	ecx, "+str( masque & M0  ).rjust(12," ") + COMMENT_MARKER + "{0:b}".format(masque & M0 ).rjust(32,"0") +" \n" # Mark initial position
-			output += "	call	SauteDepuis_"+ str(si) +"_"+ str(sj)+"_" + str(depth_limit-1) + "_" + str(n) +"\n"
+			output += "	call	SauteDepuis_"+ str(si) +"_"+ str(sj)+"_" + str(depth_limit-1) +"\n"
 			output += "	mov	rax, rdx\n"
 			for n in range(1,coef):
 				output += "	add	rax, rdx\n"
 			output += "	ret\n"
 
-			output += COMMENT_MARKER + "--------------------------------------------------\n"
-
-			for depth in range(0, w*h-1):
-				for j in range(h):
-					for i in range(w):
-						output += 'SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + "_" + str(n) + ":\n"
-						output += genLibraryOptimizedASM_Aux( depth, 0, i, j, 0, masque_avoid=masque )
-						output += "	ret\n\n"
 	output += "\n"
+	output += COMMENT_MARKER + "--------------------------------------------------\n"
+
+	for depth in range(0, w*h-1):
+		for j in range(h):
+			for i in range(w):
+				output += 'SauteDepuis_' + str(i) + "_" + str(j) + "_" + str(depth) + ":\n"
+				output += genLibraryOptimizedASM_Aux( depth, 0, i, j, 0, masque_avoid=masque )
+				output += "	ret\n\n"
 	
+	output += "\n"
 
 
 	return symbols + output
